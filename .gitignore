@@ -116,3 +116,5 @@ data/3dmm/
 
 datasets/
 data/
+# remove a symlint datasets
+!datasets/
