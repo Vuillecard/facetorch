@@ -10,7 +10,7 @@ from facetorch.datastruct import Detection, Dimensions, Face, ImageData, Locatio
 from facetorch.logger import LoggerJsonFile
 from facetorch.utils import rgb2bgr
 from torchvision import transforms
-
+import cv2
 logger = LoggerJsonFile().logger
 
 
@@ -165,9 +165,13 @@ class PostRetFace(BaseDetPostProcessor):
         """
         data.det = Detection(loc=logits[0], conf=logits[1], landmarks=logits[2])
 
+
+        img = data.tensor[0].permute(1, 2, 0).cpu().numpy()
+        cv2.imwrite("/idiap/temp/pvuillecard/libs/facetorch_extra/data/output/mediapipedetector.jpg", img)
+
         if self.reverse_colors:
             data.tensor = rgb2bgr(data.tensor)
-
+        
         data = self._process_dets(data)
         data = self._extract_faces(data)
         return data

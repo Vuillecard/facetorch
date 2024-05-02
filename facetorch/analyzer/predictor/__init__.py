@@ -1,3 +1,3 @@
-from .core import FacePredictor
+from .core import FacePredictor, FacePredictorMediapipe
 
-__all__ = ["FacePredictor"]
+__all__ = ["FacePredictor", "FacePredictorMediapipe"]

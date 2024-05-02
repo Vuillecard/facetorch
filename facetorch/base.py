@@ -11,7 +11,8 @@ from facetorch import utils
 from facetorch.datastruct import ImageData
 from facetorch.logger import LoggerJsonFile
 from facetorch.transforms import script_transform
-
+import cv2
+import numpy as np
 logger = LoggerJsonFile().logger
 
 
@@ -45,9 +46,13 @@ class BaseProcessor(object, metaclass=ABCMeta):
 
         if self.transform is not None:
             self.transform = utils.fix_transform_list_attr(self.transform)
-
+        
+        
         if self.optimize_transform is True:
             self.optimize()
+        
+        if self.transform is None: 
+            self.transform = lambda x: x
 
     def optimize(self):
         """Optimizes the transform using torch.jit and deploys it to the device."""
@@ -111,6 +116,9 @@ class BaseReader(BaseProcessor):
 
         data = ImageData(path_input=None)
         data.tensor = copy.deepcopy(tensor)
+        # img = data.tensor.permute(1, 2, 0).cpu().type(torch.uint8).numpy()
+        # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # cv2.imwrite("/idiap/temp/pvuillecard/libs/facetorch_extra/data/output/mediapipereader.jpg", img)
 
         if tensor.dim() == 3:
             data.tensor = data.tensor.unsqueeze(0)
@@ -121,7 +129,15 @@ class BaseReader(BaseProcessor):
             data.tensor = self.transform(data.tensor)
 
         data.img = data.tensor.squeeze(0).cpu()
+        # img = data.img.permute(1, 2, 0).numpy().astype(np.uint8)
+        # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # cv2.imwrite("/idiap/temp/pvuillecard/libs/facetorch_extra/data/output/mediapipereader_3.jpg", img)
+
         data.tensor = data.tensor.type(torch.float32)
+        # img = data.tensor[0].permute(1, 2, 0).cpu().numpy()
+        # img = (img ).astype(np.uint8)
+        # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        # cv2.imwrite("/idiap/temp/pvuillecard/libs/facetorch_extra/data/output/mediapipereader_2.jpg", img)
         data.set_dims()
 
         return data

@@ -4,7 +4,7 @@ from facetorch.base import BaseProcessor
 from facetorch.datastruct import ImageData
 from facetorch.logger import LoggerJsonFile
 from torchvision import transforms
-
+import cv2
 logger = LoggerJsonFile().logger
 
 
@@ -35,6 +35,16 @@ class FaceUnifier(BaseProcessor):
             ImageData: ImageData object containing the unified face tensors normalized between 0 and 1.
         """
         for indx, face in enumerate(data.faces):
+            
             data.faces[indx].tensor = self.transform(face.tensor)
+
+            # img = data.faces[indx].tensor
+            # print(img.shape)
+            # print(img.min(), img.max())
+            # img = img.permute(1, 2, 0).cpu().numpy()
+            # img = (img*255).astype('uint8')
+            # img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            # cv2.imwrite("/idiap/temp/pvuillecard/libs/facetorch_extra/data/output/mediapipeunifier.jpg", img)
+
 
         return data

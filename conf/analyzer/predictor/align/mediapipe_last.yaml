@@ -1,4 +1,4 @@
-_target_: facetorch.analyzer.predictor.FacePredictor
+_target_: facetorch.analyzer.predictor.FacePredictorMediapipe
 
 downloader:
   _target_: facetorch.downloader.DownloaderGDrive
@@ -11,17 +11,11 @@ device:
 
 preprocessor:
   _target_: facetorch.analyzer.predictor.pre.PredictorPreProcessor
-  transform:
-    _target_: torchvision.transforms.Compose
-    transforms:
-      - _target_: torchvision.transforms.Resize
-        size: [120, 120] # List[int]
-        antialias: True # bool
-      
+  transform: None
   device: 
     _target_: torch.device
     type: ${analyzer.predictor.align.device.type}
-  optimize_transform: ${analyzer.optimize_transforms}
+  optimize_transform: false
   reverse_colors: False # bool
 
 postprocessor:
@@ -32,3 +26,4 @@ postprocessor:
     type: ${analyzer.predictor.align.device.type}
   optimize_transform: ${analyzer.optimize_transforms}
   labels: ["abstract"] # List
+

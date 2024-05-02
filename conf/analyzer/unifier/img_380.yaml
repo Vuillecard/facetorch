@@ -3,7 +3,8 @@ transform:
   _target_: torchvision.transforms.Compose
   transforms:
     - _target_: torchvision.transforms.Normalize
-      mean: [-123., -117., -104.] # List[float] # Denormalize
+      #mean: [-123., -117., -104.] # List[float] # Denormalize
+      mean: [-104., -117., -123.]
       std: [255., 255., 255.] # List[float]
     - _target_: torchvision.transforms.Resize
       size: [380, 380] # List[int]

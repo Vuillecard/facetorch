@@ -1,9 +1,11 @@
 
-_target_: facetorch.analyzer.utilizer.draw.BoxDrawer
+_target_: facetorch.analyzer.utilizer.draw.TextDrawerTorch
 transform: None
 device:
   _target_: torch.device
   type: ${analyzer.device} # str
 optimize_transform: False
-color: green
-line_width: 3
+text_output: 
+ - fer
+ - va
+ - au

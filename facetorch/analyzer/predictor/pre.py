@@ -90,3 +90,6 @@ class PredictorPreProcessor(BasePredPreProcessor):
         if self.reverse_colors:
             faces = rgb2bgr(faces)
         return faces
+    
+
+

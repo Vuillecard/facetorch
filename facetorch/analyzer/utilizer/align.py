@@ -10,7 +10,6 @@ from torchvision import transforms
 
 logger = LoggerJsonFile().logger
 
-
 class Lmk3DMeshPose(BaseUtilizer):
     def __init__(
         self,
@@ -342,3 +341,157 @@ class Lmk3DMeshPose(BaseUtilizer):
         if ret_mat:
             return pe
         return angles, t3d
+
+
+
+class MediapipeLmk3DPoseBlend(BaseUtilizer):
+    def __init__(
+        self,
+        transform: transforms.Compose,
+        device: torch.device,
+        optimize_transform: bool,
+        image_size: int = 120,
+    ):
+        """Initializes the Lmk3DMeshPose class. This class is used to convert the face parameter vector to 3D landmarks, mesh and pose.
+
+        Args:
+            transform (Compose): Composed Torch transform object.
+            device (torch.device): Torch device cpu or cuda object.
+            optimize_transform (bool): Whether to optimize the transform.
+            downloader_meta (BaseDownloader): Downloader for metadata.
+            image_size (int): Standard size of the face image.
+
+        """
+        super().__init__(transform, device, optimize_transform)
+
+        self.image_size = image_size
+        
+
+    @Timer("Lmk3DMeshPose.run", "{name}: {milliseconds:.2f} ms", logger=logger.debug)
+    def run(self, data: ImageData) -> ImageData:
+        """Runs the Lmk3DMeshPose class functionality - convert the face parameter vector to 3D landmarks, mesh and pose.
+
+        Adds the following attributes to the data object:
+
+        - landmark [[y, x, z], 68 (points)]
+        - mesh [[y, x, z], 53215 (points)]
+        - pose (Euler angles [yaw, pitch, roll] and translation [y, x, z])
+
+        Args:
+            data (ImageData): ImageData object containing most of the data including the predictions.
+
+        Returns:
+            ImageData: ImageData object containing lmk3d, mesh and pose.
+        """
+        for count, face in enumerate(data.faces):
+            assert "align" in face.preds.keys(), "align key not found in face.preds"
+            param = face.preds["align"].logits
+
+            if param.sum() != -(478*3 + 4*4 +52):
+                roi_box = [face.loc.x1, face.loc.y1, face.loc.x2, face.loc.y2]
+
+                landmarks = self._compute_lmrks(param, roi_box)
+                angles = self._compute_pose(param)
+                blend = self._compute_blendshape(param)
+                
+
+                data.faces[count].preds["align"].other["lmk3d"] = landmarks
+                data.faces[count].preds["align"].other["pose"] = dict(angles=angles)
+                data.faces[count].preds["align"].other["blendshape"] = blend
+            else:
+                data.faces[count].preds["align"].other["lmk3d"] = None
+                data.faces[count].preds["align"].other["pose"] = None
+                data.faces[count].preds["align"].other["blendshape"] = None
+
+        return data
+
+    def _compute_lmrks(
+        self,
+        param: torch.Tensor,
+        roi_bbox: Tuple[int, int, int, int],
+    ) -> torch.Tensor:
+        """Predict the vertices of the face given the parameter vector.
+
+        Args:
+            param (torch.Tensor): Parameter vector.
+            roi_bbox (Tuple[int, int, int, int]): Bounding box of the face.
+            dense (bool): Whether to return a dense or sparse vertex representation.
+            transform_space (bool): Whether to transform the vertex representation to the original space.
+
+        Returns:
+            torch.Tensor: Dense or sparse vertex representation.
+        """
+        lmks = param[:3*478]
+        lmks = lmks.reshape(-1,3).T
+        
+        sx, sy, ex, ey = roi_bbox
+        scale_x = (ex - sx) 
+        scale_y = (ey - sy) 
+        lmks[0, :] = lmks[0, :] * scale_x + sx
+        lmks[1, :] = lmks[1, :] * scale_y + sy
+        lmks[2, :] = lmks[2, :] * scale_x
+
+        return lmks
+
+    def _compute_pose(
+        self,
+        param: torch.Tensor,
+    ) -> List[float] :
+        """Predict the pose of the face given the parameter vector.
+
+        Args:
+            param (torch.Tensor): Parameter vector.
+            roi_bbox (Tuple[int, int, int, int, int]): Bounding box of the face.
+            ret_mat (bool): Whether to return the rotation matrix.
+
+        Returns:
+            Union[torch.Tensor]: Pose of the face.
+        """
+        R = param[3*478:3*478+4*4]
+        re = R.reshape(4,4)
+
+
+        if re[2, 0] != 1 and re[2, 0] != -1:
+            x = np.arcsin(re[2, 0])
+            y = np.arctan2(
+                re[1, 2] / np.cos(x),
+                re[2, 2] / np.cos(x),
+            )
+            z = np.arctan2(
+                re[0, 1] / np.cos(x),
+                re[0, 0] / np.cos(x),
+            )
+
+        else:  # Gimbal lock
+            z = 0
+            if re[2, 0] == -1:
+                x = np.pi / 2
+                y = z + np.arctan2(re[0, 1], re[0, 2])
+            else:
+                x = -np.pi / 2
+                y = -z + np.arctan2(-re[0, 1], -re[0, 2])
+        yaw, pitch, roll = x*180/np.pi, y*180/np.pi, z*180/np.pi
+        angles = [yaw, pitch, roll]
+        return angles
+
+    def _compute_blendshape(
+        self,
+        param: torch.Tensor,
+    ) -> List[float] :
+        """Predict the pose of the face given the parameter vector.
+
+        Args:
+            param (torch.Tensor): Parameter vector.
+            roi_bbox (Tuple[int, int, int, int, int]): Bounding box of the face.
+            ret_mat (bool): Whether to return the rotation matrix.
+
+        Returns:
+            Union[torch.Tensor]: Pose of the face.
+        """
+        blend_score = param[3*478+4*4:]
+        blend = []
+        names = ['neutral', 'browDownLeft', 'browDownRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight', 'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight', 'eyeBlinkLeft', 'eyeBlinkRight', 'eyeLookDownLeft', 'eyeLookDownRight', 'eyeLookInLeft', 'eyeLookInRight', 'eyeLookOutLeft', 'eyeLookOutRight', 'eyeLookUpLeft', 'eyeLookUpRight', 'eyeSquintLeft', 'eyeSquintRight', 'eyeWideLeft', 'eyeWideRight', 'jawForward', 'jawLeft', 'jawOpen', 'jawRight', 'mouthClose', 'mouthDimpleLeft', 'mouthDimpleRight', 'mouthFrownLeft', 'mouthFrownRight', 'mouthFunnel', 'mouthLeft', 'mouthLowerDownLeft', 'mouthLowerDownRight', 'mouthPressLeft', 'mouthPressRight', 'mouthPucker', 'mouthRight', 'mouthRollLower', 'mouthRollUpper', 'mouthShrugLower', 'mouthShrugUpper', 'mouthSmileLeft', 'mouthSmileRight', 'mouthStretchLeft', 'mouthStretchRight', 'mouthUpperUpLeft', 'mouthUpperUpRight', 'noseSneerLeft', 'noseSneerRight']
+        for idx, score in enumerate(blend_score):
+            blend.append((names[idx], score))
+
+        return blend
